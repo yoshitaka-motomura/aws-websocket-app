@@ -5,7 +5,7 @@ import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import { Function } from 'aws-cdk-lib/aws-lambda'
-
+import { WebSocketLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 
 export class ApigwAppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -15,8 +15,11 @@ export class ApigwAppStack extends cdk.Stack {
 
     // lambda function definition
     const webSocketApi = new apigw.WebSocketApi(this, 'Api', {
-        apiName: `${appName}Api`,
-        description: `API for ${appName}`,
+      apiName: `${appName}Api`,
+      description: `API for ${appName}`,
+      connectRouteOptions: {
+        // integration for connect route
+      },
 
     })
     new apigw.WebSocketStage(this, 'stage', {
