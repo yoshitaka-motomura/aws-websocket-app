@@ -1,13 +1,11 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { ApiGatewayManagementApi } from 'aws-sdk';
 
+const TABLE_NAME = process.env.TABLE_NAME as string
 export async function handler(event: APIGatewayProxyEvent) {
     const routeKey = event.requestContext.routeKey;
-    const connectionId = event.requestContext.connectionId;
-
-    if (!connectionId) {
-        return { statusCode: 400, body: 'Connection ID is required' };
-    }
+    const connectionId = event.requestContext.connectionId as string;
+    const locationId = event.queryStringParameters?.location_id;
 
     const endpoint = `https://${event.requestContext.domainName}`;;
 
@@ -17,10 +15,19 @@ export async function handler(event: APIGatewayProxyEvent) {
     });
     
     if (routeKey === '$connect') {
-        console.log(`Connection established: ${connectionId}`);
+        if (!locationId) {
+            return { statusCode: 400, body: 'location_id is required' };
+        }
+        try {
+            //await PutItem(TABLE_NAME, connectionId, locationId);
+        }catch (e) {
+            console.error('Failed to put item:', e);
+            return { statusCode: 500, body: 'Failed to put item' };
+        }
     } else if (routeKey === '$disconnect') {
-        console.log(`Connection closed: ${connectionId}`);
+        
     } else if (routeKey === '$default') {
+        // message received
         console.log(`Message received: ${event.body}`);
         try {
             await apigwManagementApi.postToConnection({

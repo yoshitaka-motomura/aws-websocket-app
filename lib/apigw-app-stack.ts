@@ -18,7 +18,7 @@ export class ApigwAppStack extends cdk.Stack {
     const certificate_arn = this.node.tryGetContext('certificateArn');
 
     // DynamoDB table definition
-    const tableName = `${appName}-connections-${stage}`;
+    const tableName = `connections`;
     const connectionTable = new dynamodb.Table(this, 'ConnectionTable', {
       tableName: tableName,
       partitionKey: {
@@ -26,7 +26,7 @@ export class ApigwAppStack extends cdk.Stack {
         type: dynamodb.AttributeType.STRING
       },
       sortKey: {
-        name: 'location_id',
+        name: 'locationId',
         type: dynamodb.AttributeType.STRING
       },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -36,9 +36,10 @@ export class ApigwAppStack extends cdk.Stack {
     connectionTable.addGlobalSecondaryIndex({
       indexName: 'locationIndex',
       partitionKey: {
-        name: 'location_id',
+        name: 'locationId',
         type: dynamodb.AttributeType.STRING
-      }
+      },
+      projectionType: dynamodb.ProjectionType.ALL
     });
 
     // Lambda function definition
