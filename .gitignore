@@ -9,3 +9,6 @@ cdk.out
 
 .idea/**/workspace.xml
 .idea/**/tasks.xml
+
+.env
+cdk.context.json
