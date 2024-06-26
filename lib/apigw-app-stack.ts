@@ -4,9 +4,10 @@ import * as apigw from 'aws-cdk-lib/aws-apigatewayv2';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as targets from 'aws-cdk-lib/aws-route53-targets';
-import { Function } from 'aws-cdk-lib/aws-lambda'
+import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { WebSocketLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as path from "node:path";
 
 export class ApigwAppStack extends cdk.Stack {
@@ -16,86 +17,112 @@ export class ApigwAppStack extends cdk.Stack {
     const stage = this.node.tryGetContext('stage') || 'dev';
     const certificate_arn = this.node.tryGetContext('certificateArn');
 
-    // dynamodb table definition
+    // DynamoDB table definition
+    const tableName = `${appName}-connections-${stage}`;
     const connectionTable = new dynamodb.Table(this, 'ConnectionTable', {
-      tableName: 'connections',
-        partitionKey: {
-            name: 'connectionId',
-            type: dynamodb.AttributeType.STRING
-        },
-        sortKey: {
-            name: 'location_id',
-            type: dynamodb.AttributeType.STRING
-        },
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST
-    })
+      tableName: tableName,
+      partitionKey: {
+        name: 'connectionId',
+        type: dynamodb.AttributeType.STRING
+      },
+      sortKey: {
+        name: 'location_id',
+        type: dynamodb.AttributeType.STRING
+      },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST
+    });
 
     connectionTable.addGlobalSecondaryIndex({
-        indexName: 'locationIndex',
-        partitionKey: {
-          name: 'location_id',
-          type: dynamodb.AttributeType.STRING
-        }
-    })
+      indexName: 'locationIndex',
+      partitionKey: {
+        name: 'location_id',
+        type: dynamodb.AttributeType.STRING
+      }
+    });
 
-    // lambda function definition
-    const lambdaHandler = new Function(this, 'ConnectFunction', {
-      runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
-      handler: 'app.lambda_handler',
-      code: cdk.aws_lambda.Code.fromAsset(path.join(__dirname, '../lambda/')),
-      functionName: `${appName}WebSocketsFunction`,
-        logGroup: new cdk.aws_logs.LogGroup(this, 'LogGroup', {
-            logGroupName: `/aws/lambda/${appName}WebSocketsFunction`,
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-        })
-    })
+    // Lambda function definition
+    const lambdaHandler = new NodejsFunction(this, 'Handler', {
+      entry: path.join(__dirname, '../lambda/index.ts'),
+      runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
+      functionName: `${appName}LambdaHandler`,
+      memorySize: 512,
+      handler: 'handler',
+      environment: {
+        TABLE_NAME: connectionTable.tableName
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+      },
+      logGroup: new cdk.aws_logs.LogGroup(this, 'LogGroup', {
+        logGroupName: `/aws/lambda/${appName}-${stage}-handler`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        retention: cdk.aws_logs.RetentionDays.ONE_WEEK
+      })
+    });
+    
+    // Grant DynamoDB permissions to Lambda
+    connectionTable.grantReadWriteData(lambdaHandler);
 
-    lambdaHandler.addEnvironment('TABLE_NAME', connectionTable.tableName)
-    connectionTable.grantFullAccess(lambdaHandler)
-
-
-    // lambda function definition
+    // WebSocket API definition
     const webSocketApi = new apigw.WebSocketApi(this, 'Api', {
       apiName: `${appName}Api`,
       description: `API for ${appName}`,
       connectRouteOptions: {
-          integration: new WebSocketLambdaIntegration('connect', lambdaHandler)
+        integration: new WebSocketLambdaIntegration('connect', lambdaHandler)
       },
       disconnectRouteOptions: {
-          integration: new WebSocketLambdaIntegration('disconnect', lambdaHandler)
+        integration: new WebSocketLambdaIntegration('disconnect', lambdaHandler)
       },
       defaultRouteOptions: {
-          integration: new WebSocketLambdaIntegration('default', lambdaHandler)
+        integration: new WebSocketLambdaIntegration('default', lambdaHandler)
       }
-    })
+    });
+    webSocketApi.grantManageConnections(lambdaHandler);
+
     const webSocketStage = new apigw.WebSocketStage(this, 'stage', {
       webSocketApi,
       stageName: stage,
       autoDeploy: true
-    })
+    });
+    
+    // Grant WebSocket API permissions to Lambda
+    const apiPolicy = new iam.PolicyStatement({
+      actions: [
+        'execute-api:ManageConnections',
+        'execute-api:Invoke'
+      ],
+      effect: iam.Effect.ALLOW,
+      resources: [
+        `arn:aws:execute-api:${this.region}:${this.account}:${webSocketApi.apiId}/${stage}/*`,
+      ],
+    });
+    lambdaHandler.addToRolePolicy(apiPolicy);
 
-    const domainName = 'socket.cristallum.io'
-    const certificateArn = certificate_arn as string
+    // Custom domain configuration
+    const domainName = 'socket.cristallum.io';
+    const certificateArn = certificate_arn as string;
     const certificate = acm.Certificate.fromCertificateArn(
       this,
       'Certificate',
       certificateArn
     );
 
-   const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
-    domainName: 'cristallum.io',
-  });
+    const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
+      domainName: 'cristallum.io',
+    });
+
     const domain = new apigw.DomainName(this, 'Domain', {
       domainName: domainName,
       certificate: certificate
-    })
+    });
 
     new apigw.ApiMapping(this, 'Mapping', {
-        api: webSocketApi,
-        domainName: domain,
-        stage: webSocketStage
-    })
+      api: webSocketApi,
+      domainName: domain,
+      stage: webSocketStage
+    });
 
     new route53.ARecord(this, 'AliasRecord', {
       zone: hostedZone,
@@ -104,7 +131,22 @@ export class ApigwAppStack extends cdk.Stack {
         domain.regionalDomainName,
         domain.regionalHostedZoneId
       )),
-    })
+    });
 
+    // Outputs
+    new cdk.CfnOutput(this, 'WebSocketApiUrl', {
+      value: webSocketApi.apiEndpoint,
+      description: 'WebSocket API URL',
+    });
+
+    new cdk.CfnOutput(this, 'WebSocketApiCustomDomainUrl', {
+      value: `wss://${domainName}`,
+      description: 'WebSocket API Custom Domain URL',
+    });
+
+    new cdk.CfnOutput(this, 'DynamoDBTableName', {
+      value: connectionTable.tableName,
+      description: 'DynamoDB Table Name',
+    });
   }
 }
