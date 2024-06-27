@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
 import { onMounted, ref, onUnmounted } from 'vue'
 
 const ws = ref<WebSocket | null>(null)
@@ -78,5 +77,4 @@ const manualReconnect = () => {
   </div>
   <button @click="close">Close</button>
   <button @click="manualReconnect" :disabled="isConnected">再接続</button>
-  <HelloWorld msg="Vite + Vue" />
 </template>
