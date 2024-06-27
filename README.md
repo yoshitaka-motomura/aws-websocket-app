@@ -1,10 +1,51 @@
-# Welcome to your CDK TypeScript project
+# Websocket API with AWS CDK
 
-This is a blank project for CDK development with TypeScript.
+This is a simple example of how to create a Websocket API with AWS CDK.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+## Chart
+``` mermaid
+graph TB
+    %% タイトル
+    title[メッセージ処理フロー]
 
-## Useful commands
+    %% クライアントコンポーネント
+    subgraph Client[クライアントコンポーネント]
+        Sender[Sender]
+        Receiver[Receiver]
+    end
+
+    %% メッセージ処理システム
+    MPS[メッセージ処理システム]
+
+    %% AWS サービス
+    subgraph AWS[AWS サービス]
+        Lambda[Lambda Function]
+        SQS[SQS]
+        DB[(DynamoDB)]
+    end
+
+    %% フロー
+    Sender -->|1. メッセージ送信| SQS
+    SQS -->|2. イベントトリガー| MPS
+    MPS -->|3. 関数呼び出し| Lambda
+    Lambda <-->|4. データ保存/取得| DB
+    MPS -->|5. 処理結果送信| Receiver
+
+    %% スタイル
+    classDef client fill:#b3d9ff,stroke:#333,stroke-width:2px;
+    classDef mps fill:#ffb3d9,stroke:#333,stroke-width:2px;
+    classDef aws fill:#ffd9b3,stroke:#333,stroke-width:2px;
+
+    class Sender,Receiver client;
+    class MPS mps;
+    class Lambda,SQS,DB aws;
+
+    %% 凡例
+    style Client fill:#b3d9ff,stroke:#333,stroke-width:2px;
+    style AWS fill:#ffd9b3,stroke:#333,stroke-width:2px;
+```
+
+## Useful commands for CDK
 
 * `npm run build`   compile typescript to js
 * `npm run watch`   watch for changes and compile
