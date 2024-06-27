@@ -5,6 +5,7 @@ import DynamoDBManage from './dynamo'
 const TABLE_NAME = process.env.TABLE_NAME as string
 const dynamo = new DynamoDBManage(TABLE_NAME)
 export async function handler(event: APIGatewayProxyEvent) {
+  console.log('Event:', event)
   const routeKey = event.requestContext.routeKey
   const connectionId = event.requestContext.connectionId as string
   const locationId = event.queryStringParameters?.locationId
