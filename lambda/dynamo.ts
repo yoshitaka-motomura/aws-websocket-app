@@ -12,6 +12,7 @@ import {
 interface DynamoDBManageInterface {
   putItem(connectionId: string, locationId: string): Promise<boolean>
   deleteItem(connectionId: string): Promise<boolean>
+  queryByLocationId(locationId: string): Promise<Pick<QueryCommandOutput, 'Items'>>
 }
 
 export default class DynamoDBManage implements DynamoDBManageInterface {
@@ -57,6 +58,24 @@ export default class DynamoDBManage implements DynamoDBManageInterface {
     } catch (err) {
       console.error('Failed:', err)
       return false
+    }
+  }
+
+  async queryByLocationId(locationId: string): Promise<Pick<QueryCommandOutput, 'Items'>> {
+    try {
+      const params = {
+        TableName: this.tableName,
+        IndexName: 'LocationIndex',
+        KeyConditionExpression: 'locationId = :locationId',
+        ExpressionAttributeValues: {
+          ':locationId': locationId,
+        },
+      }
+      const result = await this.client.send(new QueryCommand(params))
+      return result.Items as Pick<QueryCommandOutput, 'Items'>
+    } catch (err) {
+      console.error('Failed:', err)
+      return [] as Pick<QueryCommandOutput, 'Items'>
     }
   }
 }

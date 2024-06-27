@@ -7,6 +7,7 @@ import * as targets from 'aws-cdk-lib/aws-route53-targets'
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs'
 import { WebSocketLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
+import * as sqs from 'aws-cdk-lib/aws-sqs'
 import * as iam from 'aws-cdk-lib/aws-iam'
 import * as path from 'node:path'
 
@@ -16,6 +17,14 @@ export class ApigwAppStack extends cdk.Stack {
     const appName = this.node.tryGetContext('appName')
     const stage = this.node.tryGetContext('stage') || 'dev'
     const certificate_arn = this.node.tryGetContext('certificateArn')
+
+    // SQS queue definition
+    const queue = new sqs.Queue(this, 'Queue', {
+      queueName: `${appName}Queue`,
+      visibilityTimeout: cdk.Duration.seconds(300),
+      retentionPeriod: cdk.Duration.days(1),
+      encryption: sqs.QueueEncryption.KMS_MANAGED,
+    })
 
     // DynamoDB table definition
     const tableName = `connections`
@@ -59,8 +68,39 @@ export class ApigwAppStack extends cdk.Stack {
       }),
     })
 
+    const sqsQueueLambdaHandler = new NodejsFunction(this, 'SQSQueueHandler', {
+      functionName: `${appName}SQSQueueLambdaHandler`,
+      entry: path.join(__dirname, '../lambda/queue-event.ts'),
+      runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
+      memorySize: 512,
+      handler: 'handler',
+      environment: {
+        WEBSOCKET_URL: 'https://socket.cristallum.io',
+        TABLE_NAME: connectionTable.tableName,
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+      },
+      logGroup: new cdk.aws_logs.LogGroup(this, 'SQSLogGroup', {
+        logGroupName: `/aws/lambda/${appName}-${stage}-sqs-queue-handler`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        retention: cdk.aws_logs.RetentionDays.ONE_DAY,
+      }),
+    })
+
     // Grant DynamoDB permissions to Lambda
     connectionTable.grantReadWriteData(lambdaHandler)
+    connectionTable.grantReadWriteData(sqsQueueLambdaHandler)
+
+    // Grant SQS permissions to Lambda
+    queue.grantConsumeMessages(sqsQueueLambdaHandler)
+
+    sqsQueueLambdaHandler.addEventSource(
+      new cdk.aws_lambda_event_sources.SqsEventSource(queue, {
+        batchSize: 1,
+      }),
+    )
 
     // WebSocket API definition
     const webSocketApi = new apigw.WebSocketApi(this, 'Api', {
@@ -91,6 +131,7 @@ export class ApigwAppStack extends cdk.Stack {
       resources: [`arn:aws:execute-api:${this.region}:${this.account}:${webSocketApi.apiId}/${stage}/*`],
     })
     lambdaHandler.addToRolePolicy(apiPolicy)
+    sqsQueueLambdaHandler.addToRolePolicy(apiPolicy)
 
     // Custom domain configuration
     const domainName = 'socket.cristallum.io'
