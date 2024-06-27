@@ -1,4 +1,4 @@
-import { SQSEvent, Context, SQSHandler, SQSRecord } from 'aws-lambda'
+import { SQSEvent, SQSHandler } from 'aws-lambda'
 import DynamoDBManage from './dynamo'
 import { ApiGatewayManagementApi } from 'aws-sdk'
 
@@ -6,7 +6,11 @@ const TABLE_NAME = process.env.TABLE_NAME as string
 const WEBSOCKET_URL = process.env.WEBSOCKET_URL as string
 const dynamo = new DynamoDBManage(TABLE_NAME)
 
-export const handler: SQSHandler = async (event: SQSEvent, context: Context): Promise<void> => {
+/**
+ * SQS Handler
+ * @param event SQSEvent
+ */
+export const handler: SQSHandler = async (event: SQSEvent): Promise<void> => {
   const records = event.Records
   for (const record of records) {
     const item = JSON.parse(record.body) as { message: string; locationId: string }
@@ -16,7 +20,6 @@ export const handler: SQSHandler = async (event: SQSEvent, context: Context): Pr
       await sendToConnection(item as Record<'connectionId' | 'locationId', string>, `${message} from SQS`)
     }
   }
-  console.log('Done')
 }
 
 const sendToConnection = async (item: Record<'connectionId' | 'locationId', string>, message: string) => {

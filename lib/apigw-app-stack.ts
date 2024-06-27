@@ -36,6 +36,7 @@ export class ApigwAppStack extends cdk.Stack {
       },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: 'ttl',
     })
 
     connectionTable.addGlobalSecondaryIndex({

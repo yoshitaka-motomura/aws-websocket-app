@@ -15,6 +15,7 @@ interface DynamoDBManageInterface {
 
 export default class DynamoDBManage implements DynamoDBManageInterface {
   private client: DynamoDBDocumentClient
+  private TTL_HOUR = 3
   constructor(private tableName: string) {
     this.client = DynamoDBDocumentClient.from(new DynamoDBClient())
   }
@@ -26,11 +27,13 @@ export default class DynamoDBManage implements DynamoDBManageInterface {
    */
   async putItem(connectionId: string, locationId: string): Promise<boolean> {
     try {
+      const now = new Date()
       const params = {
         TableName: this.tableName,
         Item: {
           connectionId,
           locationId,
+          ttl: Math.floor(now.getTime() / 1000) + this.TTL_HOUR * 60 * 60,
         },
       }
       const result = await this.client.send(new PutCommand(params))
@@ -41,7 +44,11 @@ export default class DynamoDBManage implements DynamoDBManageInterface {
       return false
     }
   }
-
+  /**
+   * deleteItem
+   * @param connectionId
+   * @returns boolean
+   */
   async deleteItem(connectionId: string): Promise<boolean> {
     try {
       const params = {
@@ -58,7 +65,11 @@ export default class DynamoDBManage implements DynamoDBManageInterface {
       return false
     }
   }
-
+  /**
+   * queryByLocationId
+   * @param locationId
+   * @returns Pick<QueryCommandOutput, 'Items'>
+   */
   async queryByLocationId(locationId: string): Promise<Pick<QueryCommandOutput, 'Items'>> {
     try {
       const params = {
