@@ -1,55 +1,62 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { PutCommand, DynamoDBDocumentClient, DeleteCommand, GetCommandOutput, GetCommand, QueryCommand, QueryCommandOutput } from "@aws-sdk/lib-dynamodb";
-
-type SuccessfulResponseType = {
-    result: boolean;
-}
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
+import {
+  PutCommand,
+  DynamoDBDocumentClient,
+  DeleteCommand,
+  GetCommandOutput,
+  GetCommand,
+  QueryCommand,
+  QueryCommandOutput,
+} from '@aws-sdk/lib-dynamodb'
 
 interface DynamoDBManageInterface {
-    putItem(connectionId: string, locationId: string): Promise<SuccessfulResponseType>;
-    deleteItem(connectionId: string, locationId: string): Promise<SuccessfulResponseType>;
+  putItem(connectionId: string, locationId: string): Promise<boolean>
+  deleteItem(connectionId: string): Promise<boolean>
 }
 
 export default class DynamoDBManage implements DynamoDBManageInterface {
-    private client: DynamoDBDocumentClient;
-
-    constructor(private tableName: string) {
-        const _client = new DynamoDBClient();
-        this.client = DynamoDBDocumentClient.from(_client);
+  private client: DynamoDBDocumentClient
+  constructor(private tableName: string) {
+    this.client = DynamoDBDocumentClient.from(new DynamoDBClient())
+  }
+  /**
+   * putItem
+   * @param connectionId
+   * @param locationId
+   * @returns boolean
+   */
+  async putItem(connectionId: string, locationId: string): Promise<boolean> {
+    try {
+      const params = {
+        TableName: this.tableName,
+        Item: {
+          connectionId,
+          locationId,
+        },
+      }
+      const result = await this.client.send(new PutCommand(params))
+      if (result.$metadata.httpStatusCode === 200) return true
+      throw new Error('Failed to put item')
+    } catch (err) {
+      console.error('Failed:', err)
+      return false
     }
+  }
 
-    async putItem(connectionId: string, locationId: string): Promise<SuccessfulResponseType> {
-        const params = {
-            TableName: this.tableName,
-            Item: { connectionId, locationId }
-        };
-        try {
-            const response = await this.client.send(new PutCommand(params));
-            if (response.$metadata.httpStatusCode !== 200) {
-                throw new Error(`Failed to put item. Status: ${response.$metadata.httpStatusCode}`);
-            }
-            return { result: true };
-        } catch (error) {
-            console.error('Error putting item:', error);
-            throw new Error(`Failed to put item: ${error.message}`);
-        }
+  async deleteItem(connectionId: string): Promise<boolean> {
+    try {
+      const params = {
+        TableName: this.tableName,
+        Key: {
+          connectionId,
+        },
+      }
+      const result = await this.client.send(new DeleteCommand(params))
+      if (result.$metadata.httpStatusCode === 200) return true
+      throw new Error('Failed to delete item')
+    } catch (err) {
+      console.error('Failed:', err)
+      return false
     }
-
-   
-    async deleteItem(connectionId: string, locationId: string): Promise<SuccessfulResponseType> {
-        const params = {
-            TableName: this.tableName,
-            Key: { connectionId, locationId }
-        };
-        try {
-            const response = await this.client.send(new DeleteCommand(params));
-            if (response.$metadata.httpStatusCode !== 200) {
-                throw new Error(`Failed to delete item. Status: ${response.$metadata.httpStatusCode}`);
-            }
-            return { result: true };
-        } catch (error) {
-            console.error('Error deleting item:', error);
-            throw new Error(`Failed to delete item: ${error.message}`);
-        }
-    }
+  }
 }
