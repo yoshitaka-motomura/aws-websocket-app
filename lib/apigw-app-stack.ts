@@ -53,7 +53,7 @@ export class ApigwAppStack extends cdk.Stack {
       entry: path.join(__dirname, '../lambda/index.ts'),
       runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
       functionName: `${appName}LambdaHandler`,
-      memorySize: 512,
+      memorySize: 256,
       handler: 'handler',
       environment: {
         TABLE_NAME: connectionTable.tableName,
@@ -73,7 +73,7 @@ export class ApigwAppStack extends cdk.Stack {
       functionName: `${appName}SQSQueueLambdaHandler`,
       entry: path.join(__dirname, '../lambda/queue-event.ts'),
       runtime: cdk.aws_lambda.Runtime.NODEJS_20_X,
-      memorySize: 512,
+      memorySize: 256,
       handler: 'handler',
       environment: {
         WEBSOCKET_URL: 'https://socket.cristallum.io',
