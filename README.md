@@ -2,47 +2,22 @@
 
 This is a simple example of how to create a Websocket API with AWS CDK.
 
-## Chart
-``` mermaid
-graph TB
-    %% タイトル
-    title[メッセージ処理フロー]
+https://aws.amazon.com/jp/api-gateway/pricing/
+https://aws.amazon.com/jp/sqs/pricing/
+https://aws.amazon.com/jp/dynamodb/pricing/on-demand/
+```
+メッセージングコスト
 
-    %% クライアントコンポーネント
-    subgraph Client[クライアントコンポーネント]
-        Sender[Sender]
-        Receiver[Receiver]
-    end
+月間メッセージ数 = (100 (送信) + 500 (受信)) * 1000 (ユーザー) * 30 (日) = 18,000,000
 
-    %% メッセージ処理システム
-    MPS[メッセージ処理システム]
+メッセージングコスト合計 = 18,000,000/1,000,000 * $1.00 (100 万件あたり) = 18 USD
 
-    %% AWS サービス
-    subgraph AWS[AWS サービス]
-        Lambda[Lambda Function]
-        SQS[SQS]
-        DB[(DynamoDB)]
-    end
+接続コスト
 
-    %% フロー
-    Sender -->|1. メッセージ送信| SQS
-    SQS -->|2. イベントトリガー| MPS
-    MPS -->|3. 関数呼び出し| Lambda
-    Lambda <-->|4. データ保存/取得| DB
-    MPS -->|5. 処理結果送信| Receiver
+月間接続時間 (分) = 1000 (ユーザー) * 12 (時間) * 60 (分) * 30 (日) = 21,600,000
+接続コスト合計 = 21,600,000/1,000,000 * 0.25 (100 万分あたり単価) = 5.40 USD
 
-    %% スタイル
-    classDef client fill:#b3d9ff,stroke:#333,stroke-width:2px;
-    classDef mps fill:#ffb3d9,stroke:#333,stroke-width:2px;
-    classDef aws fill:#ffd9b3,stroke:#333,stroke-width:2px;
-
-    class Sender,Receiver client;
-    class MPS mps;
-    class Lambda,SQS,DB aws;
-
-    %% 凡例
-    style Client fill:#b3d9ff,stroke:#333,stroke-width:2px;
-    style AWS fill:#ffd9b3,stroke:#333,stroke-width:2px;
+総コスト = 18 USD (メッセージングコスト) + 5.40 USD (接続コスト) = 23.40 USD
 ```
 
 ## Useful commands for CDK
